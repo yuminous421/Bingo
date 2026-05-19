@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>🎡 Bingo Spinner</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:#fffdf0;overflow-x:hidden} /* 背景改為極淡乳黃色 */
+.wrap{position:relative;width:100%;min-height:100vh;font-family:'Fredoka One',Arial,sans-serif}
+
+/* ===== BACKGROUND & DECORATIONS (淡化且豐富熱鬧) ===== */
+.bg-chicks{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:0.25} /* 保持低調透明度 */
+
+/* ===== MAIN CONTENT ===== */
+.main{position:relative;z-index:10;display:flex;flex-direction:column;align-items:center;gap:18px;padding:20px 8px 40px}
+
+h1{font-size:28px;color:#5a3e8a;text-shadow:2px 2px 0 #fff;letter-spacing:.5px;margin-top:4px;font-family:'Fredoka One',Arial,sans-serif;text-align:center}
+.sub{font-size:14px;color:#8a6aaa;font-family:Arial,sans-serif;margin-bottom:4px;text-align:center;font-weight:bold}
+
+.wheel-area{display:flex;flex-direction:column;align-items:center;gap:18px;position:relative}
+.wheel-wrap{position:relative;width:440px;height:440px}
+.pointer{position:absolute;top:-20px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:18px solid transparent;border-right:14px solid transparent;border-top:36px solid #ff6b6b;z-index:20;filter:drop-shadow(0 3px 4px rgba(0,0,0,.25))}
+canvas#wh{border-radius:50%;display:block;box-shadow:0 6px 26px rgba(90,62,138,.28);background:#fff}
+.cdot{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:28px;height:28px;background:#fff;border-radius:50%;border:4px solid #ddd;z-index:20}
+
+/* ===== SPIN BUTTON ===== */
+.sbtn{
+  display:block;
+  background:#ff6b6b;
+  color:#fff;
+  border:none;
+  padding:15px 64px;
+  font-size:22px;
+  font-family:'Fredoka One',Arial,sans-serif;
+  border-radius:40px;
+  cursor:pointer;
+  box-shadow:0 6px 0 #cc3333,0 8px 20px rgba(255,80,80,.3);
+  transition:transform .1s,box-shadow .1s;
+  position:relative;
+  z-index:15;
+  letter-spacing:.5px;
+  -webkit-tap-highlight-color:transparent;
+  user-select:none
+}
+.sbtn:active{transform:translateY(4px);box-shadow:0 2px 0 #cc3333}
+.sbtn:disabled{background:#bbb;box-shadow:0 6px 0 #888;cursor:not-allowed}
+
+/* ===== 轉盤正中央彈出結果視窗 ===== */
+.rbox{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%) scale(0);
+  background:rgba(255,255,255,.98);
+  border-radius:24px;
+  padding:25px 30px;
+  text-align:center;
+  min-width:280px;
+  max-width:340px;
+  border:3px solid #ffcc66;
+  box-shadow:0 10px 30px rgba(90,62,138,0.4);
+  z-index:100;
+  opacity:0;
+  transition:transform 0.4s cubic-bezier(.36,1.7,.3,1), opacity 0.3s;
+  pointer-events:none;
+}
+.rbox.on{
+  transform:translate(-50%,-50%) scale(1);
+  opacity:1;
+  pointer-events:auto;
+}
+.ren{font-size:28px;font-weight:700;font-family:'Fredoka One',Arial,sans-serif}
+.rzh{font-size:20px;font-family:Arial,sans-serif;font-weight:600;margin-top:6px;color:#444}
+.rcat{display:inline-block;padding:5px 16px;border-radius:20px;font-size:13px;margin-top:10px;color:#fff;font-family:Arial,sans-serif;font-weight:700}
+
+/* 再轉一次按鈕 */
+.next-btn {
+  margin-top: 18px;
+  background: #5db85d;
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  font-size: 15px;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #449d44;
+  transition: transform 0.1s;
+}
+.next-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #449d44; }
+
+/* ===== 左側小雞抽中紀錄面板 ===== */
+.history-drawer {
+  position: fixed;
+  top: 120px;
+  left: -220px;
+  width: 220px;
+  max-height: 70vh;
+  background: rgba(255, 255, 255, 0.96);
+  border: 3px solid #cc9900;
+  border-left: none;
+  border-radius: 0 20px 20px 0;
+  z-index: 200;
+  transition: left 0.4s cubic-bezier(0.1, 0.9, 0.2, 1);
+  box-shadow: 5px 5px 15px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+}
+.history-drawer.open { left: 0; }
+
+.drawer-toggle {
+  position: absolute;
+  right: -65px;
+  top: 10px;
+  width: 65px;
+  height: 65px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.history-content {
+  padding: 15px;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+.history-title {
+  font-size: 15px;
+  color: #5a3e8a;
+  border-bottom: 2px dashed #ffcc66;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.history-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.history-item {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: #333;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn { from{opacity: 0; transform: translateX(-5px)} to{opacity: 1; transform: translateX(0)} }
+
+/* 裝飾用的右側小雞 */
+.right-chick-deco {
+  position: fixed;
+  top: 130px;
+  right: 40px;
+  width: 80px;
+  height: 80px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.stardiv{position:absolute;inset:0;pointer-events:none;z-index:150}
+.star{position:absolute;font-size:26px;animation:sp .7s ease-out forwards}
+@keyframes sp{0%{transform:scale(0) rotate(-10deg);opacity:1}100%{transform:scale(1.6) rotate(25deg);opacity:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  
+  <div class="bg-chicks">
+    <svg width="100%" height="100%" viewBox="0 0 1200 800" preserveAspectRatio="xMinYMin slice" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(0,0)">
+        <polygon points="0,0 30,40 60,0" fill="#ff6b6b" />
+        <polygon points="60,0 90,45 120,0" fill="#ffcc5c" />
+        <polygon points="120,0 150,40 180,0" fill="#88ccee" />
+        <polygon points="180,0 210,45 240,0" fill="#99cc66" />
+        <polygon points="240,0 270,40 300,0" fill="#ff6b9d" />
+        <path d="M0,2 Q150,30 300,2" fill="none" stroke="#666" stroke-width="2"/>
+      </g>
+      <g transform="translate(900,0)">
+        <polygon points="0,0 30,40 60,0" fill="#ff6b9d" />
+        <polygon points="60,0 90,45 120,0" fill="#99cc66" />
+        <polygon points="120,0 150,40 180,0" fill="#88ccee" />
+        <polygon points="180,0 210,45 240,0" fill="#ffcc5c" />
+        <polygon points="240,0 270,40 300,0" fill="#ff6b6b" />
+        <path d="M0,2 Q150,30 300,2" fill="none" stroke="#666" stroke-width="2"/>
+      </g>
+
+      <g transform="translate(80, 280)">
+        <ellipse cx="20" cy="30" rx="15" ry="18" fill="#ff6b6b"/>
+        <polygon points="20,48 16,54 24,54" fill="#ff6b6b"/>
+        <path d="M20,54 Q15,75 25,100" fill="none" stroke="#aaa" stroke-width="1.5"/>
+      </g>
+      <g transform="translate(1060, 240)">
+        <ellipse cx="20" cy="30" rx="15" ry="18" fill="#88ccee"/>
+        <polygon points="20,48 16,54 24,54" fill="#88ccee"/>
+        <path d="M20,54 Q25,75 15,100" fill="none" stroke="#aaa" stroke-width="1.5"/>
+      </g>
+
+      <g transform="translate(60, 90) scale(1.5)">
+        <ellipse cx="20" cy="20" rx="16" ry="14" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+        <circle cx="13" cy="17" r="2" fill="#333"/>
+        <circle cx="27" cy="17" r="2" fill="#333"/>
+        <polygon points="20,17 17,22 23,22" fill="#ff9900"/>
+        <ellipse cx="9" cy="21" rx="4" ry="2" fill="#ff9900" transform="rotate(-30 9 21)"/>
+        <ellipse cx="31" cy="21" rx="4" ry="2" fill="#ff9900" transform="rotate(30 31 21)"/>
+      </g>
+      <g transform="translate(50, 430) scale(1.2)">
+        <ellipse cx="20" cy="20" rx="16" ry="14" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+        <path d="M11,17 Q14,14 16,17" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round"/> <circle cx="26" cy="17" r="2" fill="#333"/>
+        <polygon points="20,18 17,22 23,22" fill="#ff9900"/>
+      </g>
+      <g transform="translate(120, 640) scale(1.3)">
+        <ellipse cx="20" cy="20" rx="16" ry="14" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+        <circle cx="14" cy="17" r="2" fill="#333"/>
+        <circle cx="26" cy="17" r="2" fill="#333"/>
+        <polygon points="20,17 17,21 23,21" fill="#ff9900"/>
+        <circle cx="20" cy="3" r="4" fill="#ff4444"/>
+        <path d="M20,1 Q22,-2 21,-4" fill="none" stroke="#664420" stroke-width="1"/>
+      </g>
+
+      <g transform="translate(1040, 90) scale(1.4)">
+        <ellipse cx="20" cy="20" rx="16" ry="14" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+        <circle cx="13" cy="16" r="2" fill="#333"/>
+        <circle cx="27" cy="16" r="2" fill="#333"/>
+        <circle cx="20" cy="21" r="2.5" fill="#ff9900"/> <path d="M5,15 Q1,10 4,5" fill="none" stroke="#cc9900" stroke-width="1.5"/> </g>
+      <g transform="translate(1070, 440) scale(1.2)">
+        <ellipse cx="20" cy="20" rx="16" ry="14" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+        <circle cx="14" cy="17" r="2" fill="#333"/>
+        <circle cx="26" cy="17" r="2" fill="#333"/>
+        <polygon points="20,17 17,21 23,21" fill="#ff9900"/>
+        <polygon points="20,-6 12,7 28,7" fill="#ff6b9d"/>
+        <circle cx="20" cy="-7" r="2" fill="#fffcc5"/>
+      </g>
+      <g transform="translate(980, 650) scale(1.4)">
+        <ellipse cx="20" cy="20" rx="16" ry="14" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+        <path d="M11,18 Q14,21 16,18" fill="none" stroke="#333" stroke-width="1.8"/>
+        <path d="M24,18 Q27,21 29,18" fill="none" stroke="#333" stroke-width="1.8"/>
+        <polygon points="20,19 17,23 23,23" fill="#ff9900"/>
+      </g>
+
+      <g fill="#ffbbcc"><circle cx="200" cy="220" r="4"/><circle cx="940" cy="300" r="5"/><circle cx="850" cy="580" r="4"/></g>
+      <g fill="#ffee99"><circle cx="150" cy="480" r="5"/><circle cx="1000" cy="200" r="4"/><circle cx="300" cy="690" r="5"/></g>
+      <g fill="#b3e5fc"><circle cx="280" cy="150" r="4"/><circle cx="880" cy="180" r="5"/><circle cx="1120" cy="600" r="4"/></g>
+      <path d="M140,340 L143,345 L149,345 L144,349 L146,355 L140,351 L134,355 L136,349 L131,345 L137,345 Z" fill="#ffcc00"/>
+      <path d="M960,140 L963,145 L969,145 L964,149 L966,155 L960,151 L954,155 L956,149 L951,145 L957,145 Z" fill="#ffcc00"/>
+      <path d="M240,580 L243,585 L249,585 L244,589 L246,595 L240,591 L234,595 L236,589 L231,585 L237,585 Z" fill="#ffcc00"/>
+      <path d="M920,480 L923,485 L929,485 L924,489 L926,495 L920,491 L914,495 L916,489 L911,485 L917,485 Z" fill="#ffcc00"/>
+    </svg>
+  </div>
+
+  <div class="history-drawer" id="drawer">
+    <div class="drawer-toggle" id="toggleDrawer">
+      <svg width="65" height="65" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="20" cy="20" rx="18" ry="16" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+        <circle cx="13" cy="17" r="2.5" fill="#333"/>
+        <circle cx="27" cy="17" r="2.5" fill="#333"/>
+        <polygon points="20,16 16,22 24,22" fill="#ff9900"/>
+        <ellipse cx="7" cy="20" rx="4" ry="2" fill="#ff9900" transform="rotate(-20 7 20)"/>
+        <ellipse cx="33" cy="20" rx="4" ry="2" fill="#ff9900" transform="rotate(20 33 20)"/>
+      </svg>
+    </div>
+    <div class="history-content">
+      <div class="history-title">📝 已轉出單字 (<span id="h-count">0</span>)</div>
+      <ul class="history-list" id="h-list"></ul>
+    </div>
+  </div>
+
+  <div class="right-chick-deco">
+    <svg width="100%" height="100%" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="20" cy="20" rx="18" ry="16" fill="#ffe066" stroke="#cc9900" stroke-width="1.5"/>
+      <circle cx="12" cy="17" r="2.5" fill="#333"/>
+      <circle cx="24" cy="17" r="2.5" fill="#333"/>
+      <polygon points="18,18 14,22 22,22" fill="#ff9900"/>
+      <circle cx="30" cy="24" r="7" fill="#deba76" stroke="#a07840" stroke-width="1.2"/>
+      <circle cx="28" cy="21" r="0.9" fill="#604020"/>
+      <circle cx="32" cy="26" r="0.9" fill="#604020"/>
+    </svg>
+  </div>
+
+  <div class="main">
+    <div>
+      <h1>🎡 Bingo Spinner</h1>
+    </div>
+
+    <div class="wheel-area">
+      <div class="wheel-wrap">
+        <div class="pointer"></div>
+        <canvas id="wh" width="440" height="440"></canvas>
+        <div class="cdot"></div>
+        
+        <div class="rbox" id="rb">
+          <div class="ren" id="ren"></div>
+          <div class="rzh" id="rzh"></div>
+          <div><span class="rcat" id="rcat"></span></div>
+          <button class="next-btn" id="nextBtn">🔄 再轉一次</button>
+        </div>
+      </div>
+      
+      <button class="sbtn" id="sb">🎲 SPIN!</button>
+    </div>
+  </div>
+
+  <div class="stardiv" id="stars"></div>
+</div>
+
+<script>
+var CATS=[
+  {name:"Vegetables",zh:"蔬菜類",color:"#5db85d",items:[
+    {en:"Carrot",zh:"胡蘿蔔"},{en:"Cabbage",zh:"高麗菜"},{en:"Bean sprout",zh:"豆芽"},
+    {en:"Broccoli",zh:"花椰菜"},{en:"Onion",zh:"洋蔥"},{en:"Lettuce",zh:"生菜"}
+  ]},
+  {name:"Dairy",zh:"乳品類",color:"#e8c840",items:[
+    {en:"Fresh milk",zh:"鮮乳"},{en:"Yogurt",zh:"優格"},{en:"Cheese",zh:"起司"}
+  ]},
+  {name:"Fruits",zh:"水果類",color:"#e8609a",items:[
+    {en:"Watermelon",zh:"西瓜"},{en:"Mango",zh:"芒果"},{en:"Cantaloupe",zh:"哈密瓜"},
+    {en:"Strawberry",zh:"草莓"},{en:"Mandarin",zh:"橘子"},{en:"Grape",zh:"葡萄"},{en:"Lemon",zh:"檸檬"}
+  ]},
+  {name:"Nuts & Oils",zh:"油脂與堅果類",color:"#d4784a",items:[
+    {en:"Peanut",zh:"花生"},{en:"Cashew",zh:"腰果"},{en:"Sesame",zh:"芝麻"},
+    {en:"Walnut",zh:"核桃"},{en:"Almond",zh:"杏仁"},{en:"Soybean oil",zh:"大豆油"}
+  ]},
+  {name:"Grains",zh:"全穀雜糧類",color:"#8870e8",items:[
+    {en:"Rice",zh:"米"},{en:"Noodles",zh:"麵條"},{en:"Sweet potato",zh:"地瓜"},
+    {en:"Taro",zh:"芋頭"},{en:"Potato",zh:"馬鈴薯"},{en:"Corn",zh:"玉米"},
+    {en:"Red bean",zh:"紅豆"},{en:"Mung bean",zh:"綠豆"},{en:"Oatmeal",zh:"麥片"}
+  ]},
+  {name:"Protein",zh:"豆魚蛋肉類",color:"#4aa8d8",items:[
+    {en:"Tofu",zh:"豆腐"},{en:"Soy milk",zh:"豆漿"},{en:"Fish",zh:"魚"},
+    {en:"Shrimp",zh:"蝦子"},{en:"Egg",zh:"雞蛋"},{en:"Chicken",zh:"雞肉"},
+    {en:"Pork",zh:"豬肉"},{en:"Beef",zh:"牛肉"}
+  ]}
+];
+
+var ALL=[];
+CATS.forEach(function(c){c.items.forEach(function(it){ALL.push({en:it.en,zh:it.zh,cat:c.name,zhCat:c.zh,color:c.color,used:false})})});
+
+var cv=document.getElementById('wh');
+var ctx2=cv.getContext('2d');
+var N=ALL.length;
+var ARC=2*Math.PI/N;
+var rot=0;
+var spinning=false;
+var historyCount = 0;
+
+var audioCtx = null;
+function initAudio() { if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } }
+
+function playTickSound() {
+  if (!audioCtx) return;
+  var osc = audioCtx.createOscillator(); var gain = audioCtx.createGain();
+  osc.type = 'triangle'; osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.04);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.04);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.04);
+}
+
+function playTadaSound() {
+  if (!audioCtx) return;
+  var notes = [523.25, 659.25, 783.99, 1046.50]; var now = audioCtx.currentTime;
+  notes.forEach(function(freq, index) {
+    var osc = audioCtx.createOscillator(); var gain = audioCtx.createGain();
+    osc.type = 'sine'; osc.frequency.setValueAtTime(freq, now + index * 0.08);
+    gain.gain.setValueAtTime(0.12, now + index * 0.08); gain.gain.linearRampToValueAtTime(0, now + 0.5 + index * 0.08);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now + index * 0.08); osc.stop(now + 0.5 + index * 0.08);
+  });
+}
+
+function lighten(hex){
+  var r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  r=Math.min(255,r+40);g=Math.min(255,g+40);b=Math.min(255,b+40);
+  return'#'+r.toString(16).padStart(2,'0')+g.toString(16).padStart(2,'0')+b.toString(16).padStart(2,'0');
+}
+
+function drawWheel(r){
+  ctx2.clearRect(0,0,440,440);
+  var cx=220,cy=220,rad=214;
+  for(var i=0;i<N;i++){
+    var s=r+i*ARC,e=s+ARC;
+    ctx2.beginPath();ctx2.moveTo(cx,cy);ctx2.arc(cx,cy,rad,s,e);ctx2.closePath();
+    ctx2.fillStyle=i%2===0?ALL[i].color:lighten(ALL[i].color);
+    ctx2.fill();
+    
+    if(ALL[i].used){
+      ctx2.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx2.fill();
+    }
+
+    ctx2.strokeStyle='#fff';ctx2.lineWidth=1.8;ctx2.stroke();
+    ctx2.save();
+    ctx2.translate(cx,cy);ctx2.rotate(s+ARC/2);
+    ctx2.textAlign='right';
+    ctx2.fillStyle=ALL[i].used ? '#aaa' : '#fff';
+    ctx2.font='bold 13px Fredoka One,Arial,sans-serif';
+    if(!ALL[i].used){
+      ctx2.shadowColor='rgba(0,0,0,.35)';ctx2.shadowBlur=2;
+    }
+    var lbl=ALL[i].en;if(lbl.length>15)lbl=lbl.slice(0,14)+'…';
+    ctx2.fillText(lbl,rad-10,4);
+    ctx2.restore();
+  }
+  ctx2.beginPath();ctx2.arc(220,220,rad,0,2*Math.PI);
+  ctx2.strokeStyle='rgba(255,255,255,.5)';ctx2.lineWidth=6;ctx2.stroke();
+}
+drawWheel(rot);
+
+function showStars(){
+  var sd=document.getElementById('stars');sd.innerHTML='';
+  var em=['⭐','✨','🌟','💫','🎊','🎉'];
+  for(var i=0;i<10;i++){
+    var s=document.createElement('div');s.className='star';
+    s.style.cssText='left:'+(8+Math.random()*84)+'%;top:'+(15+Math.random()*65)+'%;animation-delay:'+(Math.random()*.5)+'s';
+    s.textContent=em[Math.floor(Math.random()*em.length)];
+    sd.appendChild(s);
+  }
+  setTimeout(function(){sd.innerHTML=''},1400);
+}
+
+function doSpin(){
+  if(spinning)return;
+  
+  var availableIndices = [];
+  for(var i=0; i<N; i++){
+    if(!ALL[i].used) availableIndices.push(i);
+  }
+  
+  if(availableIndices.length === 0){
+    alert("所有單字都已經抽完囉！請重新整理網頁再次遊玩。");
+    return;
+  }
+
+  initAudio();
+  spinning=true;
+  var btn=document.getElementById('sb');
+  btn.disabled=true;
+  document.getElementById('rb').classList.remove('on');
+
+  var targetIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+  var targetAngle = (N - targetIndex - 0.5) * ARC - Math.PI/2;
+  var currentRotNorm = (rot % (2*Math.PI));
+  var extraTurns = (6 + Math.floor(Math.random() * 4)) * 2 * Math.PI;
+  var total = extraTurns + (targetAngle - currentRotNorm);
+  
+  var dur=3500+Math.random()*500;
+  var t0=performance.now();
+  var r0=rot;
+  var lastIndex = -1;
+
+  function ease(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2}
+  function frame(now){
+    var el=now-t0,t=Math.min(el/dur,1);
+    rot=r0+total*ease(t);
+    drawWheel(rot);
+
+    var norm=((-rot-Math.PI/2)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+    var currentIndex=Math.floor(norm/ARC)%N;
+    if(currentIndex !== lastIndex) {
+      playTickSound();
+      lastIndex = currentIndex;
+    }
+
+    if(t<1){requestAnimationFrame(frame)}
+    else{
+      spinning=false;
+      showResult(targetIndex);
+      showStars();
+      playTadaSound();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function showResult(idx){
+  var item=ALL[idx];
+  item.used = true;
+  drawWheel(rot);
+
+  var ren=document.getElementById('ren');
+  ren.textContent=item.en;ren.style.color=item.color;
+  document.getElementById('rzh').textContent=item.zh;
+  var rc=document.getElementById('rcat');
+  rc.textContent=item.zhCat+' · '+item.cat;rc.style.background=item.color;
+  
+  document.getElementById('rb').classList.add('on');
+
+  historyCount++;
+  document.getElementById('h-count').textContent = historyCount;
+  
+  var li = document.createElement('li');
+  li.className = 'history-item';
+  li.style.background = lighten(item.color) + '33';
+  li.style.borderLeft = '4px solid ' + item.color;
+  li.innerHTML = '<strong>' + item.zh + '</strong> <span style="color:#666; font-size:11px;">' + item.en + '</span>';
+  
+  var hList = document.getElementById('h-list');
+  hList.insertBefore(li, hList.firstChild);
+
+  var drawer = document.getElementById('drawer');
+  drawer.classList.add('open');
+  setTimeout(function(){
+    if(!spinning && !document.getElementById('rb').classList.contains('on')){
+      drawer.classList.remove('open');
+    }
+  }, 2500);
+
+  var leftItems = ALL.filter(function(i){return !i.used});
+  if(leftItems.length === 0){
+    document.getElementById('sb').textContent = "🎉 全數抽完";
+    document.getElementById('sb').disabled = true;
+  }
+}
+
+document.getElementById('nextBtn').addEventListener('click', function(){
+  document.getElementById('rb').classList.remove('on');
+  document.getElementById('sb').disabled = false;
+  document.getElementById('drawer').classList.remove('open');
+});
+
+var drawer = document.getElementById('drawer');
+document.getElementById('toggleDrawer').addEventListener('click', function(e){
+  e.stopPropagation();
+  drawer.classList.toggle('open');
+});
+
+var btn=document.getElementById('sb');
+btn.addEventListener('click',doSpin);
+btn.addEventListener('touchend',function(e){e.preventDefault();doSpin()});
+</script>
+</body>
+</html>
